@@ -32,7 +32,11 @@ def _event_end(ev: dict[str, Any], start: dt.datetime) -> dt.datetime:
     return start + DEFAULT_DURATION
 
 
-def _booking_to_calendar_event(booking: dict[str, Any]) -> CalendarEvent | None:
+def _booking_to_calendar_event(
+    booking: dict[str, Any],
+    *,
+    booked_only_calendar: bool = False,
+) -> CalendarEvent | None:
     ev = booking.get("event") or {}
     raw_begin = ev.get("date_begin")
     if not raw_begin:
@@ -45,8 +49,11 @@ def _booking_to_calendar_event(booking: dict[str, Any]) -> CalendarEvent | None:
     status = (booking.get("current_status") or {}).get("status_name") or "unknown"
     loc = ev.get("location") or {}
     loc_name = loc.get("name") or ""
-    tag = "Booked" if status == "booked" else "Waitlist" if status == "waitlisted" else status
-    summary = f"[{tag}] {loc_name}".strip() if loc_name else f"[{tag}] Class"
+    if booked_only_calendar:
+        summary = loc_name.strip() if loc_name else "Beat81 class"
+    else:
+        tag = "Booked" if status == "booked" else "Waitlist" if status == "waitlisted" else status
+        summary = f"[{tag}] {loc_name}".strip() if loc_name else f"[{tag}] Class"
     cur = int(ev.get("current_participants_count") or 0)
     maxp = int(ev.get("max_participants") or 0)
     spots = max(0, maxp - cur) if maxp else 0
@@ -70,12 +77,18 @@ def _events_from_bookings(
     bookings: list[dict[str, Any]],
     start_date: dt.datetime,
     end_date: dt.datetime,
+    *,
+    status_filter: set[str] | None = None,
+    booked_only_calendar: bool = False,
 ) -> list[CalendarEvent]:
     out: list[CalendarEvent] = []
     start_utc = dt_util.as_utc(start_date)
     end_utc = dt_util.as_utc(end_date)
     for b in bookings:
-        ce = _booking_to_calendar_event(b)
+        st = (b.get("current_status") or {}).get("status_name")
+        if status_filter is not None and st not in status_filter:
+            continue
+        ce = _booking_to_calendar_event(b, booked_only_calendar=booked_only_calendar)
         if ce is None:
             continue
         s = dt_util.as_utc(ce.start) if isinstance(ce.start, dt.datetime) else None
@@ -97,7 +110,12 @@ async def async_setup_entry(
     coordinator: Beat81Coordinator = hass.data[DOMAIN]["coordinators"][
         entry.entry_id
     ]
-    async_add_entities([Beat81ClassesCalendar(coordinator)])
+    async_add_entities(
+        [
+            Beat81ClassesCalendar(coordinator),
+            Beat81NextBookingsCalendar(coordinator),
+        ]
+    )
 
 
 class Beat81ClassesCalendar(Beat81Entity, CalendarEntity):
@@ -136,4 +154,51 @@ class Beat81ClassesCalendar(Beat81Entity, CalendarEntity):
             return []
         return _events_from_bookings(
             self.coordinator.data.bookings, start_date, end_date
+        )
+
+
+class Beat81NextBookingsCalendar(Beat81Entity, CalendarEntity):
+    """Confirmed (booked) upcoming classes only — cleaner calendar for your schedule."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Next bookings"
+    _attr_should_poll = False
+
+    @property
+    def unique_id(self) -> str:
+        uid = (
+            self.coordinator.config_entry.unique_id
+            if self.coordinator.config_entry
+            else "legacy"
+        )
+        return f"{DOMAIN}_{uid}_next_bookings"
+
+    @property
+    def event(self) -> CalendarEvent | None:
+        if self.coordinator.data is None:
+            return None
+        now = dt_util.now()
+        future = _events_from_bookings(
+            self.coordinator.data.bookings,
+            now,
+            now + dt.timedelta(days=365),
+            status_filter={"booked"},
+            booked_only_calendar=True,
+        )
+        return future[0] if future else None
+
+    async def async_get_events(
+        self,
+        hass: HomeAssistant,
+        start_date: dt.datetime,
+        end_date: dt.datetime,
+    ) -> list[CalendarEvent]:
+        if self.coordinator.data is None:
+            return []
+        return _events_from_bookings(
+            self.coordinator.data.bookings,
+            start_date,
+            end_date,
+            status_filter={"booked"},
+            booked_only_calendar=True,
         )

@@ -1,5 +1,5 @@
 # Add as a new Lovelace dashboard (Raw configuration editor) or merge into an existing view.
-# Entity IDs include your account id, e.g. calendar.beat81_<id>_classes — use **Developer tools → States** to copy the real ids.
+# Entity IDs include your account id, e.g. calendar.beat81_<id>_classes and calendar.beat81_<id>_next_bookings.
 
 title: Beat81
 views:
@@ -12,9 +12,16 @@ views:
           **Token:** set in the Beat81 integration (UI) or via YAML import. When auth fails, remove the integration and add it again with a new JWT.
 
       - type: calendar
+        title: All classes (booked + waitlist)
         entities:
           - calendar.beat81_classes
         initial_view: dayGridMonth
+
+      - type: calendar
+        title: Next bookings (confirmed only)
+        entities:
+          - calendar.beat81_next_bookings
+        initial_view: listWeek
 
       - type: horizontal-stack
         cards:

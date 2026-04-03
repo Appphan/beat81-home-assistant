@@ -16,7 +16,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 ## Features
 
 - **UI setup** with a guided description for obtaining the JWT, optional user-id override, and poll interval.
-- **Upcoming classes** as a **calendar** (booked and waitlisted, non-cancelled).
+- **Calendars:** **Classes** (booked + waitlist) and **Next bookings** (confirmed classes only).
 - **Status sensor** with counts and structured waitlist rows (spots open, same-day block, can promote).
 - **Button** “Promote waitlist” plus service **`beat81.promote_waitlist`**.
 - **Options**: change API poll interval without re-entering the token; optional **auto-promote** after each poll when a waitlisted class becomes bookable.
@@ -36,7 +36,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 
 3. Go to **Settings → Devices & services → Add integration** and search for **Beat81**. Follow the form; the description explains how to obtain the JWT.
 
-4. Optional: add the dashboard from `lovelace/beat81-dashboard.yaml`. Entity IDs look like `sensor.beat81_<your_user_id>_status` — pick the real entities from **Developer tools → States** or the device page.
+4. Optional: add the dashboard from `lovelace/beat81-dashboard.yaml`. Entity IDs look like `sensor.beat81_<your_user_id>_status` and `calendar.beat81_<id>_next_bookings` — pick the real entities from **Developer tools → States** or the device page.
 
 ### HACS
 
