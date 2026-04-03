@@ -11,13 +11,42 @@ CONF_USER_ID = "user_id"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_SCAN_INTERVAL_MINUTES = "scan_interval_minutes"
 CONF_SCAN_INTERVAL_SECONDS = "scan_interval_seconds"
+CONF_SCAN_INTERVAL_WAITLIST_SECONDS = "scan_interval_waitlist_seconds"
+CONF_SCAN_INTERVAL_IDLE_SECONDS = "scan_interval_idle_seconds"
 CONF_AUTO_PROMOTE = "auto_promote"
 
 DEFAULT_SCAN_INTERVAL = timedelta(minutes=15)
 DEFAULT_SCAN_INTERVAL_MINUTES = 15
-DEFAULT_SCAN_INTERVAL_SECONDS = 900
 
-# UI + stored options; minimum 5s enforced in scan_interval_timedelta
+# When at least one ticket is waitlisted vs none — dynamic polling
+DEFAULT_WAITLIST_POLL_SECONDS = 5
+DEFAULT_IDLE_POLL_SECONDS = 1800  # 30 minutes
+
+WAITLIST_POLL_CHOICES: tuple[int, ...] = (
+    5,
+    10,
+    15,
+    30,
+    45,
+    60,
+    90,
+    120,
+    180,
+    300,
+)
+
+IDLE_POLL_CHOICES: tuple[int, ...] = (
+    60,
+    120,
+    180,
+    300,
+    600,
+    900,
+    1800,
+    3600,
+)
+
+# Legacy single-interval UI (v1.4.x); migration only
 SCAN_INTERVAL_CHOICES: tuple[int, ...] = (
     5,
     10,
@@ -36,21 +65,41 @@ SCAN_INTERVAL_CHOICES: tuple[int, ...] = (
 )
 
 
+def snap_waitlist_seconds(seconds: int) -> int:
+    if seconds in WAITLIST_POLL_CHOICES:
+        return seconds
+    return min(WAITLIST_POLL_CHOICES, key=lambda x: abs(x - seconds))
+
+
+def snap_idle_seconds(seconds: int) -> int:
+    if seconds in IDLE_POLL_CHOICES:
+        return seconds
+    return min(IDLE_POLL_CHOICES, key=lambda x: abs(x - seconds))
+
+
 def snap_scan_interval_seconds(seconds: int) -> int:
-    """Map arbitrary seconds to the nearest configured poll option."""
+    """Legacy single-interval snap (migration)."""
     if seconds in SCAN_INTERVAL_CHOICES:
         return seconds
     return min(SCAN_INTERVAL_CHOICES, key=lambda x: abs(x - seconds))
 
 
-def scan_interval_timedelta(options: Mapping[str, Any]) -> timedelta:
-    """Build poll interval from config entry options (seconds preferred, legacy minutes)."""
-    raw_sec = options.get(CONF_SCAN_INTERVAL_SECONDS)
-    if raw_sec is not None:
-        sec = max(5, int(raw_sec))
-        return timedelta(seconds=sec)
+def dual_poll_intervals(options: Mapping[str, Any]) -> tuple[timedelta, timedelta]:
+    """Fast interval when waitlist_count > 0, slow when not. Migrates legacy options."""
+    w = options.get(CONF_SCAN_INTERVAL_WAITLIST_SECONDS)
+    i = options.get(CONF_SCAN_INTERVAL_IDLE_SECONDS)
+    if w is not None and i is not None:
+        return (
+            timedelta(seconds=max(5, int(w))),
+            timedelta(seconds=max(60, int(i))),
+        )
+    if (legacy := options.get(CONF_SCAN_INTERVAL_SECONDS)) is not None:
+        idle_s = snap_idle_seconds(max(60, int(legacy)))
+        return timedelta(seconds=DEFAULT_WAITLIST_POLL_SECONDS), timedelta(seconds=idle_s)
     minutes = max(1, int(options.get(CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES)))
-    return timedelta(minutes=minutes)
+    idle_s = snap_idle_seconds(max(60, minutes * 60))
+    return timedelta(seconds=DEFAULT_WAITLIST_POLL_SECONDS), timedelta(seconds=idle_s)
+
 
 BOOKING_URL = "https://api.production.b81.io/api/tickets"
 

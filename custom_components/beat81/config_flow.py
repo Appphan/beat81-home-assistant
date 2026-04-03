@@ -18,50 +18,62 @@ from homeassistant.helpers import selector
 from .client import Beat81Client, user_id_from_token
 from .const import (
     CONF_AUTO_PROMOTE,
+    CONF_SCAN_INTERVAL_IDLE_SECONDS,
     CONF_SCAN_INTERVAL_MINUTES,
     CONF_SCAN_INTERVAL_SECONDS,
+    CONF_SCAN_INTERVAL_WAITLIST_SECONDS,
     CONF_TOKEN,
     CONF_USER_ID,
+    DEFAULT_IDLE_POLL_SECONDS,
     DEFAULT_SCAN_INTERVAL_MINUTES,
-    DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_WAITLIST_POLL_SECONDS,
     DOMAIN,
-    SCAN_INTERVAL_CHOICES,
+    IDLE_POLL_CHOICES,
+    WAITLIST_POLL_CHOICES,
+    snap_idle_seconds,
     snap_scan_interval_seconds,
+    snap_waitlist_seconds,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _scan_interval_labels(sec: int) -> str:
-    if sec < 60:
-        return f"{sec} seconds"
-    if sec == 60:
+def _human_duration(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds} seconds"
+    if seconds == 60:
         return "1 minute"
-    if sec < 3600 and sec % 60 == 0:
-        m = sec // 60
+    if seconds < 3600 and seconds % 60 == 0:
+        m = seconds // 60
         return f"{m} minutes"
-    if sec == 3600:
+    if seconds == 3600:
         return "1 hour"
-    return f"{sec} seconds"
+    return f"{seconds} seconds"
 
 
-SCAN_INTERVAL_OPTIONS = [
-    selector.SelectOptionDict(value=str(s), label=_scan_interval_labels(s))
-    for s in SCAN_INTERVAL_CHOICES
+WAITLIST_POLL_OPTIONS = [
+    selector.SelectOptionDict(value=str(s), label=_human_duration(s))
+    for s in WAITLIST_POLL_CHOICES
+]
+
+IDLE_POLL_OPTIONS = [
+    selector.SelectOptionDict(value=str(s), label=_human_duration(s))
+    for s in IDLE_POLL_CHOICES
 ]
 
 
-def _default_seconds_str(seconds: int) -> str:
-    if seconds in SCAN_INTERVAL_CHOICES:
+def _str_choice(seconds: int, choices: tuple[int, ...], snap_fn) -> str:
+    if seconds in choices:
         return str(seconds)
-    return str(snap_scan_interval_seconds(seconds))
+    return str(snap_fn(seconds))
 
 
 def _user_schema_defaults(
     *,
     token: str = "",
     user_id: str = "",
-    scan_seconds: int = DEFAULT_SCAN_INTERVAL_SECONDS,
+    waitlist_seconds: int = DEFAULT_WAITLIST_POLL_SECONDS,
+    idle_seconds: int = DEFAULT_IDLE_POLL_SECONDS,
 ) -> vol.Schema:
     return vol.Schema(
         {
@@ -73,11 +85,22 @@ def _user_schema_defaults(
             ),
             vol.Optional(CONF_USER_ID, default=user_id): selector.TextSelector(),
             vol.Optional(
-                CONF_SCAN_INTERVAL_SECONDS,
-                default=_default_seconds_str(scan_seconds),
+                CONF_SCAN_INTERVAL_WAITLIST_SECONDS,
+                default=_str_choice(
+                    waitlist_seconds, WAITLIST_POLL_CHOICES, snap_waitlist_seconds
+                ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=SCAN_INTERVAL_OPTIONS,
+                    options=WAITLIST_POLL_OPTIONS,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional(
+                CONF_SCAN_INTERVAL_IDLE_SECONDS,
+                default=_str_choice(idle_seconds, IDLE_POLL_CHOICES, snap_idle_seconds),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=IDLE_POLL_OPTIONS,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -148,9 +171,13 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(uid)
                 self._abort_if_unique_id_configured()
-                seconds = int(user_input[CONF_SCAN_INTERVAL_SECONDS])
                 opts: dict[str, Any] = {
-                    CONF_SCAN_INTERVAL_SECONDS: seconds,
+                    CONF_SCAN_INTERVAL_WAITLIST_SECONDS: int(
+                        user_input[CONF_SCAN_INTERVAL_WAITLIST_SECONDS]
+                    ),
+                    CONF_SCAN_INTERVAL_IDLE_SECONDS: int(
+                        user_input[CONF_SCAN_INTERVAL_IDLE_SECONDS]
+                    ),
                     CONF_AUTO_PROMOTE: False,
                 }
                 return self.async_create_entry(
@@ -167,7 +194,10 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
                 data_schema=_user_schema_defaults(
                     token=user_input.get(CONF_TOKEN, ""),
                     user_id=user_input.get(CONF_USER_ID, ""),
-                    scan_seconds=int(user_input[CONF_SCAN_INTERVAL_SECONDS]),
+                    waitlist_seconds=int(
+                        user_input[CONF_SCAN_INTERVAL_WAITLIST_SECONDS]
+                    ),
+                    idle_seconds=int(user_input[CONF_SCAN_INTERVAL_IDLE_SECONDS]),
                 ),
                 errors=errors,
             )
@@ -185,7 +215,7 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
         minutes = int(
             import_config.get(CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES)
         )
-        seconds = snap_scan_interval_seconds(max(5, minutes * 60))
+        idle_s = snap_idle_seconds(max(60, minutes * 60))
         try:
             uid = await _validate_token(token, user_id or None)
         except Exception:
@@ -200,7 +230,8 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_USER_ID: user_id.strip(),
             },
             options={
-                CONF_SCAN_INTERVAL_SECONDS: seconds,
+                CONF_SCAN_INTERVAL_WAITLIST_SECONDS: DEFAULT_WAITLIST_POLL_SECONDS,
+                CONF_SCAN_INTERVAL_IDLE_SECONDS: idle_s,
                 CONF_AUTO_PROMOTE: False,
             },
         )
@@ -211,36 +242,63 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
         return Beat81OptionsFlow(config_entry)
 
 
+def _options_defaults(opts: dict[str, Any]) -> tuple[str, str]:
+    """Return default strings for waitlist + idle selects (migrates legacy keys)."""
+    if CONF_SCAN_INTERVAL_WAITLIST_SECONDS in opts:
+        w = int(opts[CONF_SCAN_INTERVAL_WAITLIST_SECONDS])
+    else:
+        w = DEFAULT_WAITLIST_POLL_SECONDS
+    if CONF_SCAN_INTERVAL_IDLE_SECONDS in opts:
+        i = int(opts[CONF_SCAN_INTERVAL_IDLE_SECONDS])
+    elif CONF_SCAN_INTERVAL_SECONDS in opts:
+        i = snap_idle_seconds(max(60, int(opts[CONF_SCAN_INTERVAL_SECONDS])))
+    else:
+        i = int(opts.get(CONF_SCAN_INTERVAL_MINUTES, 15)) * 60
+        i = snap_idle_seconds(max(60, i))
+    return (
+        _str_choice(w, WAITLIST_POLL_CHOICES, snap_waitlist_seconds),
+        _str_choice(i, IDLE_POLL_CHOICES, snap_idle_seconds),
+    )
+
+
 class Beat81OptionsFlow(OptionsFlow):
-    """Reload integration after changing poll interval or auto-promote."""
+    """Reload integration after changing poll intervals or auto-promote."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
             merged = dict(self.config_entry.options)
-            merged[CONF_SCAN_INTERVAL_SECONDS] = int(
-                user_input[CONF_SCAN_INTERVAL_SECONDS]
+            merged[CONF_SCAN_INTERVAL_WAITLIST_SECONDS] = int(
+                user_input[CONF_SCAN_INTERVAL_WAITLIST_SECONDS]
+            )
+            merged[CONF_SCAN_INTERVAL_IDLE_SECONDS] = int(
+                user_input[CONF_SCAN_INTERVAL_IDLE_SECONDS]
             )
             merged[CONF_AUTO_PROMOTE] = user_input[CONF_AUTO_PROMOTE]
+            merged.pop(CONF_SCAN_INTERVAL_SECONDS, None)
             merged.pop(CONF_SCAN_INTERVAL_MINUTES, None)
             return self.async_create_entry(title="", data=merged)
 
-        opts = self.config_entry.options
-        if CONF_SCAN_INTERVAL_SECONDS in opts:
-            current_sec = int(opts[CONF_SCAN_INTERVAL_SECONDS])
-        else:
-            current_sec = int(opts.get(CONF_SCAN_INTERVAL_MINUTES, 15)) * 60
-        scan_default = _default_seconds_str(current_sec)
-        auto_default = opts.get(CONF_AUTO_PROMOTE, False)
+        w_def, i_def = _options_defaults(dict(self.config_entry.options))
+        auto_default = self.config_entry.options.get(CONF_AUTO_PROMOTE, False)
         schema = vol.Schema(
             {
                 vol.Required(
-                    CONF_SCAN_INTERVAL_SECONDS,
-                    default=scan_default,
+                    CONF_SCAN_INTERVAL_WAITLIST_SECONDS,
+                    default=w_def,
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=SCAN_INTERVAL_OPTIONS,
+                        options=WAITLIST_POLL_OPTIONS,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Required(
+                    CONF_SCAN_INTERVAL_IDLE_SECONDS,
+                    default=i_def,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=IDLE_POLL_OPTIONS,
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),

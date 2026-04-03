@@ -7,7 +7,8 @@
         "data": {
           "token": "JWT access token",
           "user_id": "User ID override (optional, rarely needed)",
-          "scan_interval_seconds": "How often to poll the Beat81 API (very short intervals increase API load)"
+          "scan_interval_waitlist_seconds": "Poll interval while you have at least one waitlisted class",
+          "scan_interval_idle_seconds": "Poll interval when you have no waitlisted classes"
         }
       }
     },
@@ -27,9 +28,10 @@
     "step": {
       "init": {
         "title": "Beat81",
-        "description": "**Refresh:** each interval the integration calls the Beat81 tickets API, updates entities (sensor, calendars, binary sensor), then optionally runs promotion.\n\n**Auto-promote (when enabled):** after a successful refresh, if any waitlisted class has a free spot **and** you do **not** already have another **booked** class on that **calendar day**, the integration calls the same **book** API as the **Promote waitlist** button for the **first** such class in the API list. It does **not** try every waitlisted class in one go unless the first succeeds (then same-day rules may block the next). If nothing qualifies, nothing is posted.\n\n**5-second polling** is allowed but stresses Beat81 servers — use only if you accept that risk.",
+        "description": "**Two refresh speeds:** while you have at least one **waitlisted** class, the **waitlist** interval is used. When `waitlist_count` is **0**, the **idle** interval is used.\n\n**Auto-promote (when enabled):** after a successful refresh, if any waitlisted class has a free spot **and** you do **not** already have another **booked** class on that **calendar day**, the integration calls the same **book** API as the **Promote waitlist** button for the **first** such class in the API list. If nothing qualifies, nothing is posted.\n\nVery fast waitlist polling increases API load — use responsibly.",
         "data": {
-          "scan_interval_seconds": "Poll interval (seconds)",
+          "scan_interval_waitlist_seconds": "Interval while waitlisted",
+          "scan_interval_idle_seconds": "Interval when not waitlisted",
           "auto_promote": "Automatically promote waitlist when conditions are met"
         }
       }

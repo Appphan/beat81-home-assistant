@@ -42,7 +42,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 ### HACS
 
 1. **HACS** → **Integrations** → **⋮** → **Custom repositories** → add `https://github.com/Appphan/beat81-home-assistant` as category **Integration**.
-2. **Download** a **release** (e.g. **v1.4.0** or newer) when offered.
+2. **Download** a **release** (e.g. **v1.5.0** or newer) when offered.
 3. **Restart Home Assistant**, then add **Beat81** from the UI as above.
 
 The repo root includes **`hacs.json`** so the default branch works with HACS; tagged **releases** are still recommended.
@@ -57,12 +57,12 @@ If you already use a `beat81:` block in `configuration.yaml`, it will be **impor
 |-------|----------|-------------|
 | JWT | Yes | Full Bearer token (paste without the word `Bearer`). |
 | User ID | No | Only if the JWT has no usable user id (rare). |
-| Refresh interval | No | How often to poll the API — from **5 seconds** up to **1 hour** (default 15 minutes). Set under **Configure**. Very fast polling hits Beat81’s API often; use responsibly. |
+| Refresh | No | **Two intervals** under **Configure**: one while you have **any waitlist** (default **5 s**), one when **no waitlist** (default **30 min**). The integration switches automatically after each poll. |
 | Auto-promote | No | Under **Configure**: see *How promotion works* below. |
 
 ### How refresh works
 
-On each poll the integration calls Beat81’s tickets API (same list as the app), then updates the sensor, calendars, and binary sensor. **You do not need a separate “update” automation** if this interval is short enough — set **5 seconds** under **Configure** if you want that cadence.
+On each poll the integration calls Beat81’s tickets API (same list as the app), then updates the sensor, calendars, and binary sensor. **Waitlist interval** applies when `waitlist_count > 0`; **idle interval** when you have no waitlisted classes. After promotion clears your last waitlist entry, the next scheduled poll uses the slower idle interval until you join a waitlist again.
 
 ### How promotion works
 

@@ -9,6 +9,8 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import CALLBACK_TYPE
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import Beat81Client, token_exp_iso
@@ -84,17 +86,50 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
         self,
         hass,
         client: Beat81Client,
-        update_interval: timedelta,
+        *,
+        waitlist_interval: timedelta,
+        idle_interval: timedelta,
         config_entry: ConfigEntry | None = None,
     ) -> None:
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=update_interval,
+            update_interval=None,
         )
         self.client = client
         self.config_entry = config_entry
+        self._waitlist_interval = waitlist_interval
+        self._idle_interval = idle_interval
+        self._unsub_refresh: CALLBACK_TYPE | None = None
+
+    def _pick_delay_seconds(self) -> float:
+        if self.data is None:
+            return float(self._waitlist_interval.total_seconds())
+        if self.data.waitlist_count > 0:
+            return float(self._waitlist_interval.total_seconds())
+        return float(self._idle_interval.total_seconds())
+
+    def async_cancel_scheduled_refresh(self) -> None:
+        if self._unsub_refresh is not None:
+            self._unsub_refresh()
+            self._unsub_refresh = None
+
+    def schedule_next_refresh(self) -> None:
+        self.async_cancel_scheduled_refresh()
+        delay = self._pick_delay_seconds()
+
+        async def _fire(_when: datetime) -> None:
+            self._unsub_refresh = None
+            await self.async_refresh()
+
+        self._unsub_refresh = async_call_later(self.hass, delay, _fire)
+
+    async def async_refresh(self) -> None:
+        try:
+            await super().async_refresh()
+        finally:
+            self.schedule_next_refresh()
 
     async def _async_update_data(self) -> Beat81CoordinatorData:
         try:

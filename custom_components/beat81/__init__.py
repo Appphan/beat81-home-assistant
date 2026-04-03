@@ -22,7 +22,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     SERVICE_PROMOTE_WAITLIST,
-    scan_interval_timedelta,
+    dual_poll_intervals,
 )
 from .coordinator import Beat81Coordinator
 
@@ -99,11 +99,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Beat81 from a config entry."""
     token = entry.data[CONF_TOKEN]
     user_id = (entry.data.get(CONF_USER_ID) or "").strip() or None
-    interval = scan_interval_timedelta(entry.options)
+    wait_iv, idle_iv = dual_poll_intervals(entry.options)
 
     client = Beat81Client(token, user_id_override=user_id)
-    coordinator = Beat81Coordinator(hass, client, interval, config_entry=entry)
+    coordinator = Beat81Coordinator(
+        hass,
+        client,
+        waitlist_interval=wait_iv,
+        idle_interval=idle_iv,
+        config_entry=entry,
+    )
     await coordinator.async_config_entry_first_refresh()
+    coordinator.schedule_next_refresh()
 
     _coordinators(hass)[entry.entry_id] = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -124,6 +131,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coord = _coordinators(hass).pop(entry.entry_id, None)
     if coord:
+        coord.async_cancel_scheduled_refresh()
         await coord.client.async_close()
 
     if not _coordinators(hass) and hass.services.has_service(
