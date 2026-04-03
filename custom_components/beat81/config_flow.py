@@ -19,34 +19,50 @@ from .client import Beat81Client, user_id_from_token
 from .const import (
     CONF_AUTO_PROMOTE,
     CONF_SCAN_INTERVAL_MINUTES,
+    CONF_SCAN_INTERVAL_SECONDS,
     CONF_TOKEN,
     CONF_USER_ID,
     DEFAULT_SCAN_INTERVAL_MINUTES,
+    DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
+    SCAN_INTERVAL_CHOICES,
+    snap_scan_interval_seconds,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _scan_interval_labels(sec: int) -> str:
+    if sec < 60:
+        return f"{sec} seconds"
+    if sec == 60:
+        return "1 minute"
+    if sec < 3600 and sec % 60 == 0:
+        m = sec // 60
+        return f"{m} minutes"
+    if sec == 3600:
+        return "1 hour"
+    return f"{sec} seconds"
+
+
 SCAN_INTERVAL_OPTIONS = [
-    selector.SelectOptionDict(value="5", label="5 minutes"),
-    selector.SelectOptionDict(value="10", label="10 minutes"),
-    selector.SelectOptionDict(value="15", label="15 minutes (recommended)"),
-    selector.SelectOptionDict(value="30", label="30 minutes"),
-    selector.SelectOptionDict(value="60", label="60 minutes"),
+    selector.SelectOptionDict(value=str(s), label=_scan_interval_labels(s))
+    for s in SCAN_INTERVAL_CHOICES
 ]
+
+
+def _default_seconds_str(seconds: int) -> str:
+    if seconds in SCAN_INTERVAL_CHOICES:
+        return str(seconds)
+    return str(snap_scan_interval_seconds(seconds))
 
 
 def _user_schema_defaults(
     *,
     token: str = "",
     user_id: str = "",
-    scan_minutes: int = DEFAULT_SCAN_INTERVAL_MINUTES,
+    scan_seconds: int = DEFAULT_SCAN_INTERVAL_SECONDS,
 ) -> vol.Schema:
-    scan_default = str(
-        scan_minutes
-        if scan_minutes in (5, 10, 15, 30, 60)
-        else DEFAULT_SCAN_INTERVAL_MINUTES
-    )
     return vol.Schema(
         {
             vol.Required(CONF_TOKEN, default=token): selector.TextSelector(
@@ -56,7 +72,10 @@ def _user_schema_defaults(
                 ),
             ),
             vol.Optional(CONF_USER_ID, default=user_id): selector.TextSelector(),
-            vol.Optional(CONF_SCAN_INTERVAL_MINUTES, default=scan_default): selector.SelectSelector(
+            vol.Optional(
+                CONF_SCAN_INTERVAL_SECONDS,
+                default=_default_seconds_str(scan_seconds),
+            ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=SCAN_INTERVAL_OPTIONS,
                     mode=selector.SelectSelectorMode.DROPDOWN,
@@ -129,17 +148,18 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(uid)
                 self._abort_if_unique_id_configured()
-                minutes = int(user_input[CONF_SCAN_INTERVAL_MINUTES])
+                seconds = int(user_input[CONF_SCAN_INTERVAL_SECONDS])
+                opts: dict[str, Any] = {
+                    CONF_SCAN_INTERVAL_SECONDS: seconds,
+                    CONF_AUTO_PROMOTE: False,
+                }
                 return self.async_create_entry(
                     title="Beat81",
                     data={
                         CONF_TOKEN: user_input[CONF_TOKEN].strip(),
                         CONF_USER_ID: (user_input.get(CONF_USER_ID) or "").strip(),
                     },
-                    options={
-                        CONF_SCAN_INTERVAL_MINUTES: minutes,
-                        CONF_AUTO_PROMOTE: False,
-                    },
+                    options=opts,
                 )
 
             return self.async_show_form(
@@ -147,7 +167,7 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
                 data_schema=_user_schema_defaults(
                     token=user_input.get(CONF_TOKEN, ""),
                     user_id=user_input.get(CONF_USER_ID, ""),
-                    scan_minutes=int(user_input[CONF_SCAN_INTERVAL_MINUTES]),
+                    scan_seconds=int(user_input[CONF_SCAN_INTERVAL_SECONDS]),
                 ),
                 errors=errors,
             )
@@ -165,6 +185,7 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
         minutes = int(
             import_config.get(CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES)
         )
+        seconds = snap_scan_interval_seconds(max(5, minutes * 60))
         try:
             uid = await _validate_token(token, user_id or None)
         except Exception:
@@ -179,7 +200,7 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_USER_ID: user_id.strip(),
             },
             options={
-                CONF_SCAN_INTERVAL_MINUTES: minutes,
+                CONF_SCAN_INTERVAL_SECONDS: seconds,
                 CONF_AUTO_PROMOTE: False,
             },
         )
@@ -198,22 +219,26 @@ class Beat81OptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         if user_input is not None:
             merged = dict(self.config_entry.options)
-            merged[CONF_SCAN_INTERVAL_MINUTES] = int(
-                user_input[CONF_SCAN_INTERVAL_MINUTES]
+            merged[CONF_SCAN_INTERVAL_SECONDS] = int(
+                user_input[CONF_SCAN_INTERVAL_SECONDS]
             )
             merged[CONF_AUTO_PROMOTE] = user_input[CONF_AUTO_PROMOTE]
+            merged.pop(CONF_SCAN_INTERVAL_MINUTES, None)
             return self.async_create_entry(title="", data=merged)
 
-        current = self.config_entry.options.get(
-            CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
-        )
-        scan_default = str(
-            current if current in (5, 10, 15, 30, 60) else DEFAULT_SCAN_INTERVAL_MINUTES
-        )
-        auto_default = self.config_entry.options.get(CONF_AUTO_PROMOTE, False)
+        opts = self.config_entry.options
+        if CONF_SCAN_INTERVAL_SECONDS in opts:
+            current_sec = int(opts[CONF_SCAN_INTERVAL_SECONDS])
+        else:
+            current_sec = int(opts.get(CONF_SCAN_INTERVAL_MINUTES, 15)) * 60
+        scan_default = _default_seconds_str(current_sec)
+        auto_default = opts.get(CONF_AUTO_PROMOTE, False)
         schema = vol.Schema(
             {
-                vol.Required(CONF_SCAN_INTERVAL_MINUTES, default=scan_default): selector.SelectSelector(
+                vol.Required(
+                    CONF_SCAN_INTERVAL_SECONDS,
+                    default=scan_default,
+                ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=SCAN_INTERVAL_OPTIONS,
                         mode=selector.SelectSelectorMode.DROPDOWN,

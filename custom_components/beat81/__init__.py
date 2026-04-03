@@ -20,9 +20,9 @@ from .const import (
     CONF_TOKEN,
     CONF_USER_ID,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_SCAN_INTERVAL_MINUTES,
     DOMAIN,
     SERVICE_PROMOTE_WAITLIST,
+    scan_interval_timedelta,
 )
 from .coordinator import Beat81Coordinator
 
@@ -99,10 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Beat81 from a config entry."""
     token = entry.data[CONF_TOKEN]
     user_id = (entry.data.get(CONF_USER_ID) or "").strip() or None
-    minutes = entry.options.get(
-        CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
-    )
-    interval = timedelta(minutes=minutes)
+    interval = scan_interval_timedelta(entry.options)
 
     client = Beat81Client(token, user_id_override=user_id)
     coordinator = Beat81Coordinator(hass, client, interval, config_entry=entry)

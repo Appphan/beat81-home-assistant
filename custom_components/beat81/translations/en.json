@@ -7,7 +7,7 @@
         "data": {
           "token": "JWT access token",
           "user_id": "User ID override (optional, rarely needed)",
-          "scan_interval_minutes": "Refresh interval for classes and waitlist"
+          "scan_interval_seconds": "How often to poll the Beat81 API (very short intervals increase API load)"
         }
       }
     },
@@ -27,9 +27,9 @@
     "step": {
       "init": {
         "title": "Beat81",
-        "description": "**Auto-promote:** when enabled, after each successful poll the integration tries to book the first waitlisted class that has a free spot and is not blocked by the same-day rule (same behavior as the **Promote waitlist** button). Use a shorter poll interval if you want faster reaction when spots open.",
+        "description": "**Refresh:** each interval the integration calls the Beat81 tickets API, updates entities (sensor, calendars, binary sensor), then optionally runs promotion.\n\n**Auto-promote (when enabled):** after a successful refresh, if any waitlisted class has a free spot **and** you do **not** already have another **booked** class on that **calendar day**, the integration calls the same **book** API as the **Promote waitlist** button for the **first** such class in the API list. It does **not** try every waitlisted class in one go unless the first succeeds (then same-day rules may block the next). If nothing qualifies, nothing is posted.\n\n**5-second polling** is allowed but stresses Beat81 servers — use only if you accept that risk.",
         "data": {
-          "scan_interval_minutes": "How often to poll the Beat81 API",
+          "scan_interval_seconds": "Poll interval (seconds)",
           "auto_promote": "Automatically promote waitlist when conditions are met"
         }
       }

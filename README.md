@@ -42,7 +42,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 ### HACS
 
 1. **HACS** → **Integrations** → **⋮** → **Custom repositories** → add `https://github.com/Appphan/beat81-home-assistant` as category **Integration**.
-2. **Download** a **release** (e.g. **v1.3.0** or newer) when offered.
+2. **Download** a **release** (e.g. **v1.4.0** or newer) when offered.
 3. **Restart Home Assistant**, then add **Beat81** from the UI as above.
 
 The repo root includes **`hacs.json`** so the default branch works with HACS; tagged **releases** are still recommended.
@@ -57,8 +57,17 @@ If you already use a `beat81:` block in `configuration.yaml`, it will be **impor
 |-------|----------|-------------|
 | JWT | Yes | Full Bearer token (paste without the word `Bearer`). |
 | User ID | No | Only if the JWT has no usable user id (rare). |
-| Refresh interval | No | How often to poll the API (default 15 minutes). Options can be changed later under **Configure** on the integration card. |
-| Auto-promote | No | Under **Configure**: when on, each successful poll runs the same promotion logic as the button if any waitlisted class has a free spot and is not same-day blocked. Shorter intervals react faster when spots open. |
+| Refresh interval | No | How often to poll the API — from **5 seconds** up to **1 hour** (default 15 minutes). Set under **Configure**. Very fast polling hits Beat81’s API often; use responsibly. |
+| Auto-promote | No | Under **Configure**: see *How promotion works* below. |
+
+### How refresh works
+
+On each poll the integration calls Beat81’s tickets API (same list as the app), then updates the sensor, calendars, and binary sensor. **You do not need a separate “update” automation** if this interval is short enough — set **5 seconds** under **Configure** if you want that cadence.
+
+### How promotion works
+
+- **Manual:** **Promote waitlist** button or service **`beat81.promote_waitlist`**.
+- **Auto-promote (option):** After a **successful** poll, if **any** waitlisted row has `can_promote_now` (free spot **and** no other **booked** class on that **same calendar day**), the integration runs the **same** booking logic as the button: it walks waitlisted classes in API order and **books the first** that still qualifies. One successful promotion may add that day to “already booked,” so another waitlisted class the same day is skipped until the next poll. If nothing qualifies, **no** book request is sent.
 
 ### Automation alternative
 
