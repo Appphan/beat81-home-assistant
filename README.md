@@ -12,6 +12,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 | `custom_components/beat81/` | Custom integration (copy into HA `/config/custom_components/`) |
 | `configuration.example.yaml` | Optional legacy YAML import (prefer UI setup) |
 | `lovelace/beat81-dashboard.yaml` | Lovelace layout: calendar, waitlist, one-tap promote |
+| `automations.example.yaml` | Example YAML for forced refresh + auto-promote |
 
 ## Features
 

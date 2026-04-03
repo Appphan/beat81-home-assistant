@@ -1,0 +1,42 @@
+# Copy into automations.yaml (or split with !include_dir_merge_list), or use as a blueprint.
+# Replace ENTITY_ID placeholders using Developer tools → States (search "beat81").
+
+# --- 1) Force refresh between coordinator polls (optional) ---
+# The integration already polls on its Configure interval. Use this if you want extra refreshes
+# (e.g. every 5 minutes on top of the built-in interval — avoid going too aggressive).
+- id: beat81_force_refresh
+  alias: Beat81 — force data refresh
+  description: Requests an update from the Beat81 coordinator via the status sensor.
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: "/5"
+  action:
+    - action: homeassistant.update_entity
+      target:
+        entity_id: sensor.beat81_YOUR_USER_ID_status
+
+# --- 2) Auto-promote when the binary sensor says a spot is available ---
+- id: beat81_auto_promote_when_ready
+  alias: Beat81 — auto promote waitlist when ready
+  description: Runs promote_waitlist when waitlist_promote_ready turns on (same rules as the button).
+  mode: single
+  max_exceeded: silent
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.beat81_YOUR_USER_ID_waitlist_promote_ready
+      to: "on"
+      for:
+        seconds: 10
+  action:
+    - action: beat81.promote_waitlist
+
+# --- 3) Optional — periodic promote attempt (use if you do not use the binary sensor) ---
+# - id: beat81_auto_promote_every_n_minutes
+#   alias: Beat81 — try promote every 15 minutes
+#   mode: single
+#   trigger:
+#     - platform: time_pattern
+#       minutes: "/15"
+#   action:
+#     - action: beat81.promote_waitlist
