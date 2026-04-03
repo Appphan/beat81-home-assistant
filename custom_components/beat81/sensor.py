@@ -84,7 +84,7 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
         if self.coordinator.data is None:
             return None
         d = self.coordinator.data
-        tier = "fast" if d.poll_tier == "aggressive" else "slow"
+        tier = "fast" if d.poll_tier != "idle" else "slow"
         return (
             f"{d.booked_count} booked · {d.waitlist_count} waitlist "
             f"· {tier} {_format_poll_interval(d.next_poll_interval_seconds)}"

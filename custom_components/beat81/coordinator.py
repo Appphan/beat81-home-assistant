@@ -13,9 +13,13 @@ from homeassistant.core import CALLBACK_TYPE
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .booking_filters import without_cancelled
+from .booking_filters import booking_status_lower, without_cancelled
 from .client import Beat81Client, token_exp_iso
-from .const import CONF_AUTO_PROMOTE, DOMAIN
+from .const import (
+    BOOKED_NO_WAITLIST_POLL_CAP_SECONDS,
+    CONF_AUTO_PROMOTE,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,7 +59,7 @@ def _format_poll_interval(seconds: int) -> str:
 def _build_waitlist_rows(bookings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     booked_dates: set[date] = set()
     for b in bookings:
-        if b.get("current_status", {}).get("status_name") != "booked":
+        if booking_status_lower(b) != "booked":
             continue
         ev = b.get("event") or {}
         db = ev.get("date_begin")
@@ -65,7 +69,7 @@ def _build_waitlist_rows(bookings: list[dict[str, Any]]) -> list[dict[str, Any]]
 
     rows: list[dict[str, Any]] = []
     for booking in bookings:
-        if booking.get("current_status", {}).get("status_name") != "waitlisted":
+        if booking_status_lower(booking) != "waitlisted":
             continue
         ev = booking.get("event") or {}
         db = ev.get("date_begin")
@@ -119,36 +123,54 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
         self._idle_interval = idle_interval
         self._unsub_refresh: CALLBACK_TYPE | None = None
 
-    def _polling_fields(self, waitlist_count: int) -> dict[str, Any]:
-        """UI feedback: aggressive vs idle and configured intervals."""
+    def _polling_fields(
+        self, waitlist_count: int, booked_count: int
+    ) -> dict[str, Any]:
+        """UI feedback: waitlist (fast), booked-only (capped), or idle."""
         wsec = int(self._waitlist_interval.total_seconds())
         isec = int(self._idle_interval.total_seconds())
-        aggressive = waitlist_count > 0
-        nxt = wsec if aggressive else isec
-        tier = "aggressive" if aggressive else "idle"
-        if aggressive:
+        cap = float(min(isec, BOOKED_NO_WAITLIST_POLL_CAP_SECONDS))
+        if waitlist_count > 0:
+            nxt = float(wsec)
+            tier = "aggressive"
             summary = (
                 f"Aggressive polling every {_format_poll_interval(wsec)} "
                 f"({waitlist_count} on waitlist)"
             )
-        else:
+        elif booked_count > 0:
+            nxt = cap
+            tier = "active"
             summary = (
-                f"Idle polling every {_format_poll_interval(isec)} (no waitlist)"
+                f"Polling every {_format_poll_interval(int(nxt))} "
+                f"({booked_count} booked, no waitlist — capped so app-side "
+                f"waitlist changes are not missed for {BOOKED_NO_WAITLIST_POLL_CAP_SECONDS // 60}m)"
+            )
+        else:
+            nxt = float(isec)
+            tier = "idle"
+            summary = (
+                f"Idle polling every {_format_poll_interval(isec)} "
+                "(no upcoming non-cancelled tickets)"
             )
         return {
             "poll_tier": tier,
-            "next_poll_interval_seconds": nxt,
+            "next_poll_interval_seconds": int(nxt),
             "configured_waitlist_poll_seconds": wsec,
             "configured_idle_poll_seconds": isec,
             "polling_summary": summary,
         }
 
     def _pick_delay_seconds(self) -> float:
+        w = float(self._waitlist_interval.total_seconds())
+        i = float(self._idle_interval.total_seconds())
         if self.data is None:
-            return float(self._waitlist_interval.total_seconds())
-        if self.data.waitlist_count > 0:
-            return float(self._waitlist_interval.total_seconds())
-        return float(self._idle_interval.total_seconds())
+            return w
+        d = self.data
+        if d.waitlist_count > 0:
+            return w
+        if d.booked_count > 0:
+            return min(i, float(BOOKED_NO_WAITLIST_POLL_CAP_SECONDS))
+        return i
 
     def async_cancel_scheduled_refresh(self) -> None:
         if self._unsub_refresh is not None:
@@ -178,15 +200,9 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             raise UpdateFailed(f"Beat81 update failed: {err}") from err
 
         active = without_cancelled(bookings)
-        booked = sum(
-            1
-            for b in active
-            if b.get("current_status", {}).get("status_name") == "booked"
-        )
+        booked = sum(1 for b in active if booking_status_lower(b) == "booked")
         waitlisted = sum(
-            1
-            for b in active
-            if b.get("current_status", {}).get("status_name") == "waitlisted"
+            1 for b in active if booking_status_lower(b) == "waitlisted"
         )
         data = Beat81CoordinatorData(
             bookings=bookings,
@@ -196,7 +212,7 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             promote_messages=[],
             last_promote_ok=None,
             token_expires_iso=token_exp_iso(self.client.token),
-            **self._polling_fields(waitlisted),
+            **self._polling_fields(waitlisted, booked),
         )
         auto = (
             self.config_entry is not None
@@ -230,26 +246,22 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
                     promote_messages=messages,
                     last_promote_ok=False,
                     token_expires_iso=token_exp_iso(self.client.token),
-                    **self._polling_fields(prev.waitlist_count),
+                    **self._polling_fields(
+                        prev.waitlist_count, prev.booked_count
+                    ),
                 )
             )
             return messages
 
         active = without_cancelled(bookings)
-        booked_count = sum(
-            1
-            for b in active
-            if b.get("current_status", {}).get("status_name") == "booked"
-        )
+        booked_count = sum(1 for b in active if booking_status_lower(b) == "booked")
         waitlist_count = sum(
-            1
-            for b in active
-            if b.get("current_status", {}).get("status_name") == "waitlisted"
+            1 for b in active if booking_status_lower(b) == "waitlisted"
         )
         booked_dates = {
             _parse_event_dt(b["event"]["date_begin"]).date()
             for b in active
-            if b.get("current_status", {}).get("status_name") == "booked"
+            if booking_status_lower(b) == "booked"
             and b.get("event", {}).get("date_begin")
         }
         messages.append(
@@ -263,9 +275,7 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             if not db:
                 continue
             booking_date = _parse_event_dt(str(db)).date()
-            is_waitlist = (
-                booking.get("current_status", {}).get("status_name") == "waitlisted"
-            )
+            is_waitlist = booking_status_lower(booking) == "waitlisted"
             cur = int(ev.get("current_participants_count") or 0)
             maxp = int(ev.get("max_participants") or 0)
             is_bookable = maxp > 0 and cur < maxp
@@ -301,23 +311,20 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
         fresh = await self.client.async_load_bookings()
         fresh_active = without_cancelled(fresh)
         wl = sum(
-            1
-            for b in fresh_active
-            if b.get("current_status", {}).get("status_name") == "waitlisted"
+            1 for b in fresh_active if booking_status_lower(b) == "waitlisted"
+        )
+        booked_fresh = sum(
+            1 for b in fresh_active if booking_status_lower(b) == "booked"
         )
         data = Beat81CoordinatorData(
             bookings=fresh,
             waitlist_rows=_build_waitlist_rows(fresh_active),
-            booked_count=sum(
-                1
-                for b in fresh_active
-                if b.get("current_status", {}).get("status_name") == "booked"
-            ),
+            booked_count=booked_fresh,
             waitlist_count=wl,
             promote_messages=messages,
             last_promote_ok=promoted_any,
             token_expires_iso=token_exp_iso(self.client.token),
-            **self._polling_fields(wl),
+            **self._polling_fields(wl, booked_fresh),
         )
         self.async_set_updated_data(data)
         return messages

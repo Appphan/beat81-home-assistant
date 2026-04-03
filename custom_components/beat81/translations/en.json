@@ -28,7 +28,7 @@
     "step": {
       "init": {
         "title": "Beat81",
-        "description": "**Two refresh speeds:** while you have at least one **waitlisted** class, the **waitlist** interval is used. When `waitlist_count` is **0**, the **idle** interval is used.\n\n**Auto-promote (when enabled):** after a successful refresh, if any waitlisted class has a free spot **and** you do **not** already have another **booked** class on that **calendar day**, the integration calls the same **book** API as the **Promote waitlist** button for the **first** such class in the API list. If nothing qualifies, nothing is posted.\n\nVery fast waitlist polling increases API load — use responsibly.",
+        "description": "**Three polling tiers:** (1) At least one **waitlisted** class → **waitlist** interval (e.g. 5s). (2) **Booked** classes but **no** waitlist → interval is the **smaller** of your **idle** setting and **5 minutes** (so joins/edits from the Beat81 app are not stuck behind a 30+ minute idle). (3) No non-cancelled tickets → full **idle** interval.\n\n**Auto-promote (when enabled):** after a successful refresh, if any waitlisted class has a free spot **and** you do **not** already have another **booked** class on that **calendar day**, the integration calls the same **book** API as the **Promote waitlist** button for the **first** such class in the API list. If nothing qualifies, nothing is posted.\n\nVery fast waitlist polling increases API load — use responsibly.",
         "data": {
           "scan_interval_waitlist_seconds": "Interval while waitlisted",
           "scan_interval_idle_seconds": "Interval when not waitlisted",

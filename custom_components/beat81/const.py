@@ -22,6 +22,10 @@ DEFAULT_SCAN_INTERVAL_MINUTES = 15
 DEFAULT_WAITLIST_POLL_SECONDS = 5
 DEFAULT_IDLE_POLL_SECONDS = 1800  # 30 minutes
 
+# If you have bookings but API reports zero waitlisted tickets, full idle would miss
+# waitlist joins done in the Beat81 app — cap that tier at this many seconds.
+BOOKED_NO_WAITLIST_POLL_CAP_SECONDS = 300
+
 WAITLIST_POLL_CHOICES: tuple[int, ...] = (
     5,
     10,
