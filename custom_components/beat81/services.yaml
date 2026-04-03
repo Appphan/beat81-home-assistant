@@ -1,0 +1,6 @@
+promote_waitlist:
+  name: Promote waitlist
+  description: >
+    Loads your upcoming tickets from Beat81 and tries to book the first waitlisted
+    class that has a free spot and is not blocked by the one-class-per-day rule
+    (same behaviour as “Check & book” in beat81_bot).

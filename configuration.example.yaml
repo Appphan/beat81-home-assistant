@@ -1,0 +1,11 @@
+# Merge the `beat81` block into configuration.yaml.
+# Put the real token in secrets.yaml — never commit it.
+
+beat81:
+  token: !secret beat81_token
+  # user_id: "optional-uuid-if-jwt-has-no-user-id"
+  scan_interval:
+    minutes: 15
+
+# --- secrets.yaml (example) ---
+# beat81_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....full.jwt.here
