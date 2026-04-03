@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Beat81",
+        "description": "You need a Beat81 **Bearer JWT** (access token). Home Assistant never opens a browser for Beat81 on this machine.\n\n**How to get the token**\n1. Sign in at the Beat81 website in a normal browser (same account you use for bookings).\n2. Open your browser’s developer tools → **Application** (Chrome) or **Storage** (Firefox) → **Local storage** or **Session storage** for the Beat81 site, and look for a value that looks like a JWT (`eyJ…` three dot-separated parts).\n3. Alternatively, if you use another tool or app that saves the session after login, copy the same Bearer token from there.\n4. Paste the **entire** token below (no `Bearer ` prefix).\n\n**After it expires** you must sign in again, obtain a new JWT, remove this integration and add it again with the new token (or reconfigure when supported).\n\n**Network:** this host must reach `https://api.production.b81.io`.",
+        "data": {
+          "token": "JWT access token",
+          "user_id": "User ID override (optional, rarely needed)",
+          "scan_interval_minutes": "Refresh interval for classes and waitlist"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not load bookings from Beat81. Check the token, your network, and the Home Assistant logs.",
+      "invalid_auth": "Token rejected or expired. Get a fresh JWT after signing in again.",
+      "empty_token": "Paste your JWT token.",
+      "no_user_id": "The token does not contain a user id. Enter your Beat81 user id in the optional field, or use a full session JWT.",
+      "unknown": "Unexpected error while validating the token."
+    },
+    "abort": {
+      "already_configured": "This Beat81 account is already configured.",
+      "import_failed": "YAML import failed: could not verify the token. Check configuration and logs."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Beat81",
+        "data": {
+          "scan_interval_minutes": "How often to poll the Beat81 API"
+        }
+      }
+    }
+  }
+}

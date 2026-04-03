@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import Beat81Client, token_exp_iso
@@ -79,7 +80,13 @@ def _build_waitlist_rows(bookings: list[dict[str, Any]]) -> list[dict[str, Any]]
 class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
     """Poll Beat81 tickets and expose structured data."""
 
-    def __init__(self, hass, client: Beat81Client, update_interval: timedelta) -> None:
+    def __init__(
+        self,
+        hass,
+        client: Beat81Client,
+        update_interval: timedelta,
+        config_entry: ConfigEntry | None = None,
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
@@ -87,6 +94,7 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             update_interval=update_interval,
         )
         self.client = client
+        self.config_entry = config_entry
 
     async def _async_update_data(self) -> Beat81CoordinatorData:
         try:

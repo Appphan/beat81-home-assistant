@@ -115,7 +115,9 @@ class Beat81Client:
 
     async def async_load_bookings(self) -> list[dict[str, Any]]:
         if token_clock_expired(self._token):
-            raise RuntimeError("Beat81 token expired — sign in again with beat81_bot and update secrets.")
+            raise RuntimeError(
+                "Beat81 token expired — sign in again and update the token in the integration settings."
+            )
 
         now = datetime.now(timezone.utc)
         params = {

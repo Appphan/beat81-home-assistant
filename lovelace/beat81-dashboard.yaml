@@ -1,5 +1,5 @@
 # Add as a new Lovelace dashboard (Raw configuration editor) or merge into an existing view.
-# Entity IDs default to calendar.beat81_classes, sensor.beat81_status, button.beat81_promote_waitlist.
+# Entity IDs include your account id, e.g. calendar.beat81_<id>_classes — use **Developer tools → States** to copy the real ids.
 
 title: Beat81
 views:
@@ -9,7 +9,7 @@ views:
     cards:
       - type: markdown
         content: |
-          **Token:** set in `secrets.yaml` as `beat81_token`. Renew with **beat81_bot** when auth fails.
+          **Token:** set in the Beat81 integration (UI) or via YAML import. When auth fails, remove the integration and add it again with a new JWT.
 
       - type: calendar
         entities:

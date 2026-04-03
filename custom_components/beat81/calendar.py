@@ -6,9 +6,9 @@ import datetime as dt
 from typing import Any
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
@@ -89,15 +89,14 @@ def _events_from_bookings(
     return out
 
 
-async def async_setup_platform(
+async def async_setup_entry(
     hass: HomeAssistant,
-    config: ConfigType,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    if not discovery_info or "coordinator" not in discovery_info:
-        return
-    coordinator: Beat81Coordinator = discovery_info["coordinator"]
+    coordinator: Beat81Coordinator = hass.data[DOMAIN]["coordinators"][
+        entry.entry_id
+    ]
     async_add_entities([Beat81ClassesCalendar(coordinator)])
 
 
@@ -110,7 +109,12 @@ class Beat81ClassesCalendar(Beat81Entity, CalendarEntity):
 
     @property
     def unique_id(self) -> str:
-        return f"{DOMAIN}_classes"
+        uid = (
+            self.coordinator.config_entry.unique_id
+            if self.coordinator.config_entry
+            else "legacy"
+        )
+        return f"{DOMAIN}_{uid}_classes"
 
     @property
     def event(self) -> CalendarEvent | None:

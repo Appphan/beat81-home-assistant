@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .const import (
     ATTR_BOOKED_COUNT,
     ATTR_LAST_ERROR,
@@ -20,15 +20,14 @@ from .coordinator import Beat81Coordinator
 from .entity import Beat81Entity
 
 
-async def async_setup_platform(
+async def async_setup_entry(
     hass: HomeAssistant,
-    config: ConfigType,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    if not discovery_info or "coordinator" not in discovery_info:
-        return
-    coordinator: Beat81Coordinator = discovery_info["coordinator"]
+    coordinator: Beat81Coordinator = hass.data[DOMAIN]["coordinators"][
+        entry.entry_id
+    ]
     async_add_entities([Beat81SummarySensor(coordinator)])
 
 
@@ -42,7 +41,12 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
 
     @property
     def unique_id(self) -> str:
-        return f"{DOMAIN}_status"
+        uid = (
+            self.coordinator.config_entry.unique_id
+            if self.coordinator.config_entry
+            else "legacy"
+        )
+        return f"{DOMAIN}_{uid}_status"
 
     @property
     def native_value(self) -> str | None:

@@ -1,4 +1,5 @@
-# Merge the `beat81` block into configuration.yaml.
+# Optional legacy import only — prefer **Settings → Devices & services → Add integration → Beat81**.
+# If you keep this block, Home Assistant will import it once into a config entry; then remove this YAML.
 # Put the real token in secrets.yaml — never commit it.
 
 beat81:

@@ -14,8 +14,12 @@ class Beat81Entity(CoordinatorEntity[Beat81Coordinator]):
 
     @property
     def device_info(self) -> DeviceInfo:
+        entry = self.coordinator.config_entry
+        ident = (
+            (DOMAIN, entry.entry_id) if entry else (DOMAIN, "hub")
+        )
         return DeviceInfo(
-            identifiers={(DOMAIN, "hub")},
+            identifiers={ident},
             name="Beat81",
             manufacturer="Beat81",
             model="Waitlist & bookings",
