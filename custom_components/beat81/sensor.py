@@ -26,6 +26,30 @@ from .const import (
 from .coordinator import Beat81Coordinator, _format_poll_interval
 from .entity import Beat81Entity
 
+# HA recorder refuses attributes > ~16 KiB; full API payloads easily exceed that.
+_MAX_ATTR_BOOKINGS = 12
+_MAX_PROMOTE_LOG_CHARS = 6000
+
+
+def _compact_bookings_for_attributes(
+    bookings: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int, bool]:
+    """Small summary list for state attributes; returns (rows, total, truncated)."""
+    total = len(bookings)
+    rows: list[dict[str, Any]] = []
+    for b in bookings[:_MAX_ATTR_BOOKINGS]:
+        ev = b.get("event") or {}
+        loc = ev.get("location") or {}
+        rows.append(
+            {
+                "id": b.get("id"),
+                "status": (b.get("current_status") or {}).get("status_name"),
+                "date_begin": ev.get("date_begin"),
+                "location": loc.get("name"),
+            }
+        )
+    return rows, total, total > _MAX_ATTR_BOOKINGS
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -74,11 +98,17 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
         err = None
         if self.coordinator.last_update_success is False and self.coordinator.last_exception:
             err = str(self.coordinator.last_exception)
+        active = without_cancelled(d.bookings)
+        booking_rows, booking_total, bookings_truncated = (
+            _compact_bookings_for_attributes(active)
+        )
         attrs: dict[str, Any] = {
             ATTR_BOOKED_COUNT: d.booked_count,
             ATTR_WAITLIST_COUNT: d.waitlist_count,
             ATTR_WAITLIST: d.waitlist_rows,
-            ATTR_BOOKINGS: without_cancelled(d.bookings),
+            ATTR_BOOKINGS: booking_rows,
+            "bookings_total": booking_total,
+            "bookings_truncated": bookings_truncated,
             ATTR_TOKEN_EXPIRES: d.token_expires_iso,
             ATTR_POLL_TIER: d.poll_tier,
             ATTR_NEXT_POLL_INTERVAL_SECONDS: d.next_poll_interval_seconds,
@@ -87,7 +117,10 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
             ATTR_POLLING_SUMMARY: d.polling_summary,
         }
         if d.promote_messages:
-            attrs["last_promote_log"] = "\n".join(d.promote_messages[-20:])
+            log = "\n".join(d.promote_messages[-20:])
+            if len(log) > _MAX_PROMOTE_LOG_CHARS:
+                log = log[-_MAX_PROMOTE_LOG_CHARS:]
+            attrs["last_promote_log"] = log
         if d.last_promote_ok is not None:
             attrs["last_promote_success"] = d.last_promote_ok
         if err:

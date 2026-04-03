@@ -232,7 +232,9 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry) -> OptionsFlow:
-        return Beat81OptionsFlow(config_entry)
+        # OptionsFlow is constructed with no args; HA sets flow.handler to entry_id
+        # and config_entry is provided via the OptionsFlow.config_entry property.
+        return Beat81OptionsFlow()
 
 
 def _options_defaults(opts: dict[str, Any]) -> tuple[str, str]:
