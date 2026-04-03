@@ -12,13 +12,18 @@ from .booking_filters import without_cancelled
 from .const import (
     ATTR_BOOKED_COUNT,
     ATTR_BOOKINGS,
+    ATTR_CONFIGURED_IDLE_POLL_SECONDS,
+    ATTR_CONFIGURED_WAITLIST_POLL_SECONDS,
     ATTR_LAST_ERROR,
+    ATTR_NEXT_POLL_INTERVAL_SECONDS,
+    ATTR_POLLING_SUMMARY,
+    ATTR_POLL_TIER,
     ATTR_TOKEN_EXPIRES,
     ATTR_WAITLIST,
     ATTR_WAITLIST_COUNT,
     DOMAIN,
 )
-from .coordinator import Beat81Coordinator
+from .coordinator import Beat81Coordinator, _format_poll_interval
 from .entity import Beat81Entity
 
 
@@ -55,7 +60,11 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
         if self.coordinator.data is None:
             return None
         d = self.coordinator.data
-        return f"{d.booked_count} booked · {d.waitlist_count} waitlist"
+        tier = "fast" if d.poll_tier == "aggressive" else "slow"
+        return (
+            f"{d.booked_count} booked · {d.waitlist_count} waitlist "
+            f"· {tier} {_format_poll_interval(d.next_poll_interval_seconds)}"
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -71,6 +80,11 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
             ATTR_WAITLIST: d.waitlist_rows,
             ATTR_BOOKINGS: without_cancelled(d.bookings),
             ATTR_TOKEN_EXPIRES: d.token_expires_iso,
+            ATTR_POLL_TIER: d.poll_tier,
+            ATTR_NEXT_POLL_INTERVAL_SECONDS: d.next_poll_interval_seconds,
+            ATTR_CONFIGURED_WAITLIST_POLL_SECONDS: d.configured_waitlist_poll_seconds,
+            ATTR_CONFIGURED_IDLE_POLL_SECONDS: d.configured_idle_poll_seconds,
+            ATTR_POLLING_SUMMARY: d.polling_summary,
         }
         if d.promote_messages:
             attrs["last_promote_log"] = "\n".join(d.promote_messages[-20:])

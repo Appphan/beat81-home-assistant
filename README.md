@@ -18,7 +18,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 
 - **UI setup** with a guided description for obtaining the JWT, optional user-id override, and poll interval.
 - **Calendars:** **Classes** (active booked + waitlist), **Next bookings** (confirmed only), **All workouts** (every ticket status including cancelled, plus ~14 days of past sessions — still **your** tickets only, not the full public schedule).
-- **Status sensor** with counts and structured waitlist rows (spots open, same-day block, can promote).
+- **Status sensor** with counts, structured waitlist rows, and **polling feedback** (`poll_tier` aggressive vs idle, next interval seconds, human `polling` summary).
 - **Button** “Promote waitlist” plus service **`beat81.promote_waitlist`**.
 - **Options**: change API poll interval without re-entering the token; optional **auto-promote** after each poll when a waitlisted class becomes bookable.
 
@@ -42,7 +42,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 ### HACS
 
 1. **HACS** → **Integrations** → **⋮** → **Custom repositories** → add `https://github.com/Appphan/beat81-home-assistant` as category **Integration**.
-2. **Download** a **release** (e.g. **v1.6.0** or newer) when offered.
+2. **Download** a **release** (e.g. **v1.6.1** or newer) when offered.
 3. **Restart Home Assistant**, then add **Beat81** from the UI as above.
 
 The repo root includes **`hacs.json`** so the default branch works with HACS; tagged **releases** are still recommended.

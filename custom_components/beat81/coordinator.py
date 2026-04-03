@@ -31,10 +31,25 @@ class Beat81CoordinatorData:
     promote_messages: list[str] = field(default_factory=list)
     last_promote_ok: bool | None = None
     token_expires_iso: str | None = None
+    poll_tier: str = "idle"
+    next_poll_interval_seconds: int = 0
+    configured_waitlist_poll_seconds: int = 0
+    configured_idle_poll_seconds: int = 0
+    polling_summary: str = ""
 
 
 def _parse_event_dt(iso_s: str) -> datetime:
     return datetime.fromisoformat(iso_s.replace("Z", "+00:00"))
+
+
+def _format_poll_interval(seconds: int) -> str:
+    if seconds >= 3600 and seconds % 3600 == 0:
+        h = seconds // 3600
+        return f"{h}h" if h != 1 else "1h"
+    if seconds >= 60 and seconds % 60 == 0:
+        m = seconds // 60
+        return f"{m} min" if m != 1 else "1 min"
+    return f"{seconds}s"
 
 
 def _build_waitlist_rows(bookings: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -104,6 +119,30 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
         self._idle_interval = idle_interval
         self._unsub_refresh: CALLBACK_TYPE | None = None
 
+    def _polling_fields(self, waitlist_count: int) -> dict[str, Any]:
+        """UI feedback: aggressive vs idle and configured intervals."""
+        wsec = int(self._waitlist_interval.total_seconds())
+        isec = int(self._idle_interval.total_seconds())
+        aggressive = waitlist_count > 0
+        nxt = wsec if aggressive else isec
+        tier = "aggressive" if aggressive else "idle"
+        if aggressive:
+            summary = (
+                f"Aggressive polling every {_format_poll_interval(wsec)} "
+                f"({waitlist_count} on waitlist)"
+            )
+        else:
+            summary = (
+                f"Idle polling every {_format_poll_interval(isec)} (no waitlist)"
+            )
+        return {
+            "poll_tier": tier,
+            "next_poll_interval_seconds": nxt,
+            "configured_waitlist_poll_seconds": wsec,
+            "configured_idle_poll_seconds": isec,
+            "polling_summary": summary,
+        }
+
     def _pick_delay_seconds(self) -> float:
         if self.data is None:
             return float(self._waitlist_interval.total_seconds())
@@ -157,6 +196,7 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             promote_messages=[],
             last_promote_ok=None,
             token_expires_iso=token_exp_iso(self.client.token),
+            **self._polling_fields(waitlisted),
         )
         auto = (
             self.config_entry is not None
@@ -190,6 +230,7 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
                     promote_messages=messages,
                     last_promote_ok=False,
                     token_expires_iso=token_exp_iso(self.client.token),
+                    **self._polling_fields(prev.waitlist_count),
                 )
             )
             return messages
@@ -259,6 +300,11 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
 
         fresh = await self.client.async_load_bookings()
         fresh_active = without_cancelled(fresh)
+        wl = sum(
+            1
+            for b in fresh_active
+            if b.get("current_status", {}).get("status_name") == "waitlisted"
+        )
         data = Beat81CoordinatorData(
             bookings=fresh,
             waitlist_rows=_build_waitlist_rows(fresh_active),
@@ -267,14 +313,11 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
                 for b in fresh_active
                 if b.get("current_status", {}).get("status_name") == "booked"
             ),
-            waitlist_count=sum(
-                1
-                for b in fresh_active
-                if b.get("current_status", {}).get("status_name") == "waitlisted"
-            ),
+            waitlist_count=wl,
             promote_messages=messages,
             last_promote_ok=promoted_any,
             token_expires_iso=token_exp_iso(self.client.token),
+            **self._polling_fields(wl),
         )
         self.async_set_updated_data(data)
         return messages
