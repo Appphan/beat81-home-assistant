@@ -19,7 +19,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 - **Upcoming classes** as a **calendar** (booked and waitlisted, non-cancelled).
 - **Status sensor** with counts and structured waitlist rows (spots open, same-day block, can promote).
 - **Button** “Promote waitlist” plus service **`beat81.promote_waitlist`**.
-- **Options**: change API poll interval without re-entering the token.
+- **Options**: change API poll interval without re-entering the token; optional **auto-promote** after each poll when a waitlisted class becomes bookable.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 ### HACS
 
 1. **HACS** → **Integrations** → **⋮** → **Custom repositories** → add `https://github.com/Appphan/beat81-home-assistant` as category **Integration**.
-2. **Download** a **release** (e.g. **v1.1.0** or newer) when offered.
+2. **Download** a **release** (e.g. **v1.3.0** or newer) when offered.
 3. **Restart Home Assistant**, then add **Beat81** from the UI as above.
 
 The repo root includes **`hacs.json`** so the default branch works with HACS; tagged **releases** are still recommended.
@@ -57,6 +57,11 @@ If you already use a `beat81:` block in `configuration.yaml`, it will be **impor
 | JWT | Yes | Full Bearer token (paste without the word `Bearer`). |
 | User ID | No | Only if the JWT has no usable user id (rare). |
 | Refresh interval | No | How often to poll the API (default 15 minutes). Options can be changed later under **Configure** on the integration card. |
+| Auto-promote | No | Under **Configure**: when on, each successful poll runs the same promotion logic as the button if any waitlisted class has a free spot and is not same-day blocked. Shorter intervals react faster when spots open. |
+
+### Automation alternative
+
+You can leave auto-promote off and use an automation instead, for example when `binary_sensor.…_waitlist_promote_ready` turns **on** or on a time pattern, with action `beat81.promote_waitlist`.
 
 ## Token lifecycle
 

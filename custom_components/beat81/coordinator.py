@@ -12,7 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import Beat81Client, token_exp_iso
-from .const import DOMAIN
+from .const import CONF_AUTO_PROMOTE, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             for b in bookings
             if b.get("current_status", {}).get("status_name") == "waitlisted"
         )
-        return Beat81CoordinatorData(
+        data = Beat81CoordinatorData(
             bookings=bookings,
             waitlist_rows=_build_waitlist_rows(bookings),
             booked_count=booked,
@@ -121,6 +121,18 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             last_promote_ok=None,
             token_expires_iso=token_exp_iso(self.client.token),
         )
+        auto = (
+            self.config_entry is not None
+            and self.config_entry.options.get(CONF_AUTO_PROMOTE, False)
+        )
+        if auto and any(row.get("can_promote_now") for row in data.waitlist_rows):
+            try:
+                await self.async_promote_waitlist()
+            except Exception as err:
+                _LOGGER.warning("Beat81 auto-promote failed: %s", err)
+                return data
+            return self.data if self.data is not None else data
+        return data
 
     async def async_promote_waitlist(self) -> list[str]:
         """Try to book the first promotable waitlisted class (same rules as beat81_bot)."""

@@ -27,8 +27,10 @@
     "step": {
       "init": {
         "title": "Beat81",
+        "description": "**Auto-promote:** when enabled, after each successful poll the integration tries to book the first waitlisted class that has a free spot and is not blocked by the same-day rule (same behavior as the **Promote waitlist** button). Use a shorter poll interval if you want faster reaction when spots open.",
         "data": {
-          "scan_interval_minutes": "How often to poll the Beat81 API"
+          "scan_interval_minutes": "How often to poll the Beat81 API",
+          "auto_promote": "Automatically promote waitlist when conditions are met"
         }
       }
     }

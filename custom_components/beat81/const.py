@@ -8,6 +8,7 @@ CONF_TOKEN = "token"
 CONF_USER_ID = "user_id"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_SCAN_INTERVAL_MINUTES = "scan_interval_minutes"
+CONF_AUTO_PROMOTE = "auto_promote"
 
 DEFAULT_SCAN_INTERVAL = timedelta(minutes=15)
 DEFAULT_SCAN_INTERVAL_MINUTES = 15

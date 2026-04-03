@@ -17,6 +17,7 @@ from homeassistant.helpers import selector
 
 from .client import Beat81Client, user_id_from_token
 from .const import (
+    CONF_AUTO_PROMOTE,
     CONF_SCAN_INTERVAL_MINUTES,
     CONF_TOKEN,
     CONF_USER_ID,
@@ -135,7 +136,10 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_TOKEN: user_input[CONF_TOKEN].strip(),
                         CONF_USER_ID: (user_input.get(CONF_USER_ID) or "").strip(),
                     },
-                    options={CONF_SCAN_INTERVAL_MINUTES: minutes},
+                    options={
+                        CONF_SCAN_INTERVAL_MINUTES: minutes,
+                        CONF_AUTO_PROMOTE: False,
+                    },
                 )
 
             return self.async_show_form(
@@ -174,7 +178,10 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_TOKEN: token.strip(),
                 CONF_USER_ID: user_id.strip(),
             },
-            options={CONF_SCAN_INTERVAL_MINUTES: minutes},
+            options={
+                CONF_SCAN_INTERVAL_MINUTES: minutes,
+                CONF_AUTO_PROMOTE: False,
+            },
         )
 
     @staticmethod
@@ -184,20 +191,18 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class Beat81OptionsFlow(OptionsFlow):
-    """Reload integration after changing poll interval."""
+    """Reload integration after changing poll interval or auto-promote."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(
-                title="",
-                data={
-                    CONF_SCAN_INTERVAL_MINUTES: int(
-                        user_input[CONF_SCAN_INTERVAL_MINUTES]
-                    ),
-                },
+            merged = dict(self.config_entry.options)
+            merged[CONF_SCAN_INTERVAL_MINUTES] = int(
+                user_input[CONF_SCAN_INTERVAL_MINUTES]
             )
+            merged[CONF_AUTO_PROMOTE] = user_input[CONF_AUTO_PROMOTE]
+            return self.async_create_entry(title="", data=merged)
 
         current = self.config_entry.options.get(
             CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
@@ -205,6 +210,7 @@ class Beat81OptionsFlow(OptionsFlow):
         scan_default = str(
             current if current in (5, 10, 15, 30, 60) else DEFAULT_SCAN_INTERVAL_MINUTES
         )
+        auto_default = self.config_entry.options.get(CONF_AUTO_PROMOTE, False)
         schema = vol.Schema(
             {
                 vol.Required(CONF_SCAN_INTERVAL_MINUTES, default=scan_default): selector.SelectSelector(
@@ -213,6 +219,7 @@ class Beat81OptionsFlow(OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Required(CONF_AUTO_PROMOTE, default=auto_default): selector.BooleanSelector(),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
