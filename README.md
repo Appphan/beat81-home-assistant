@@ -6,6 +6,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 
 | Path | Purpose |
 |------|---------|
+| `hacs.json` | HACS metadata (only for GitHub / HACS; not copied into `/config`) |
 | `custom_components/beat81/` | Custom integration (copy into HA `/config/custom_components/`) |
 | `configuration.example.yaml` | Ready-to-merge `beat81:` block and `secrets` example |
 | `lovelace/beat81-dashboard.yaml` | Lovelace layout: calendar, waitlist, one-tap promote |
@@ -36,6 +37,14 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 5. Optional: add the dashboard from `lovelace/beat81-dashboard.yaml` (raw YAML mode or as a manual dashboard).
 
 Confirm entity ids under **Settings → Devices & services → Beat81** (or **Developer tools → States**). Defaults are usually `calendar.beat81_classes`, `sensor.beat81_status`, and `button.beat81_promote_waitlist`; adjust the Lovelace file if yours differ.
+
+### HACS
+
+1. **HACS** → **Integrations** → **⋮** → **Custom repositories** → add `https://github.com/Appphan/beat81-home-assistant` as category **Integration**.
+2. **Download** — pick the latest **release** (e.g. **v1.0.0**) if offered; that avoids HACS errors that can appear when the only option is a short commit hash (no `hacs.json` / version mismatch on older checkouts).
+3. **Restart Home Assistant**, then add the `beat81:` YAML and secrets as above.
+
+The repo root includes **`hacs.json`** so the default branch is valid for HACS; GitHub **releases** are still the most reliable install target.
 
 ## Configuration
 
