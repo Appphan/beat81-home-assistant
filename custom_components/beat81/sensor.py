@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     ATTR_BOOKED_COUNT,
+    ATTR_BOOKINGS,
     ATTR_LAST_ERROR,
     ATTR_TOKEN_EXPIRES,
     ATTR_WAITLIST,
@@ -67,6 +68,7 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
             ATTR_BOOKED_COUNT: d.booked_count,
             ATTR_WAITLIST_COUNT: d.waitlist_count,
             ATTR_WAITLIST: d.waitlist_rows,
+            ATTR_BOOKINGS: d.bookings,
             ATTR_TOKEN_EXPIRES: d.token_expires_iso,
         }
         if d.promote_messages:
