@@ -23,6 +23,20 @@ def _parse_utc(iso_s: str) -> dt.datetime:
     return dt.datetime.fromisoformat(iso_s.replace("Z", "+00:00"))
 
 
+def _event_payload(booking: dict[str, Any]) -> dict[str, Any]:
+    ev = booking.get("event")
+    return ev if isinstance(ev, dict) else {}
+
+
+def _raw_event_begin(booking: dict[str, Any]) -> Any:
+    """Start time from nested event or top-level API fields."""
+    ev = _event_payload(booking)
+    raw = ev.get("date_begin")
+    if raw:
+        return raw
+    return booking.get("event_date_begin")
+
+
 def _event_end(ev: dict[str, Any], start: dt.datetime) -> dt.datetime:
     raw_end = ev.get("date_end")
     if raw_end:
@@ -56,8 +70,8 @@ def _event_workout_label(ev: dict[str, Any]) -> str | None:
 
 def _booking_to_all_workouts_event(booking: dict[str, Any]) -> CalendarEvent | None:
     """Every ticket session (cancelled, booked, waitlist, …) for the account."""
-    ev = booking.get("event") or {}
-    raw_begin = ev.get("date_begin")
+    ev = _event_payload(booking)
+    raw_begin = _raw_event_begin(booking)
     if not raw_begin:
         return None
     try:
@@ -103,8 +117,8 @@ def _booking_to_calendar_event(
     *,
     booked_only_calendar: bool = False,
 ) -> CalendarEvent | None:
-    ev = booking.get("event") or {}
-    raw_begin = ev.get("date_begin")
+    ev = _event_payload(booking)
+    raw_begin = _raw_event_begin(booking)
     if not raw_begin:
         return None
     try:
@@ -153,8 +167,11 @@ def _events_from_bookings(
     end_utc = dt_util.as_utc(end_date)
     for b in bookings:
         st = (b.get("current_status") or {}).get("status_name")
-        if status_filter is not None and st not in status_filter:
-            continue
+        if status_filter is not None:
+            st_key = str(st or "").lower()
+            allowed = {x.lower() for x in status_filter}
+            if st_key not in allowed:
+                continue
         if all_workouts_calendar:
             ce = _booking_to_all_workouts_event(b)
         else:
@@ -165,7 +182,8 @@ def _events_from_bookings(
         e = dt_util.as_utc(ce.end) if isinstance(ce.end, dt.datetime) else None
         if s is None or e is None:
             continue
-        if e < start_utc or s > end_utc:
+        # HA calendar range: include overlaps (exclusive on window bounds).
+        if not (s < end_utc and e > start_utc):
             continue
         out.append(ce)
     out.sort(key=lambda x: x.start if isinstance(x.start, dt.datetime) else dt.datetime.min)

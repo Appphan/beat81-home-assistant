@@ -7,11 +7,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import (
-    ConfigFlow,
-    ConfigFlowResult,
-    OptionsFlow,
-)
+from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
@@ -31,7 +27,6 @@ from .const import (
     IDLE_POLL_CHOICES,
     WAITLIST_POLL_CHOICES,
     snap_idle_seconds,
-    snap_scan_interval_seconds,
     snap_waitlist_seconds,
 )
 
@@ -52,13 +47,11 @@ def _human_duration(seconds: int) -> str:
 
 
 WAITLIST_POLL_OPTIONS = [
-    selector.SelectOptionDict(value=str(s), label=_human_duration(s))
-    for s in WAITLIST_POLL_CHOICES
+    {"value": str(s), "label": _human_duration(s)} for s in WAITLIST_POLL_CHOICES
 ]
 
 IDLE_POLL_OPTIONS = [
-    selector.SelectOptionDict(value=str(s), label=_human_duration(s))
-    for s in IDLE_POLL_CHOICES
+    {"value": str(s), "label": _human_duration(s)} for s in IDLE_POLL_CHOICES
 ]
 
 
@@ -141,7 +134,7 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self,
         user_input: dict[str, Any] | None = None,
-    ) -> ConfigFlowResult:
+    ) -> Any:
         """Prompt for JWT and options (description explains how to obtain the token)."""
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -208,7 +201,7 @@ class Beat81ConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_import(self, import_config: dict[str, Any]) -> ConfigFlowResult:
+    async def async_step_import(self, import_config: dict[str, Any]) -> Any:
         """YAML import — same validation as UI."""
         token = import_config[CONF_TOKEN]
         user_id = import_config.get(CONF_USER_ID) or ""
@@ -266,7 +259,7 @@ class Beat81OptionsFlow(OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> Any:
         if user_input is not None:
             merged = dict(self.config_entry.options)
             merged[CONF_SCAN_INTERVAL_WAITLIST_SECONDS] = int(
