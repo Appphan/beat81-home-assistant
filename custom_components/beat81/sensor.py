@@ -8,6 +8,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from .booking_filters import without_cancelled
 from .const import (
     ATTR_BOOKED_COUNT,
     ATTR_BOOKINGS,
@@ -68,7 +69,7 @@ class Beat81SummarySensor(Beat81Entity, SensorEntity):
             ATTR_BOOKED_COUNT: d.booked_count,
             ATTR_WAITLIST_COUNT: d.waitlist_count,
             ATTR_WAITLIST: d.waitlist_rows,
-            ATTR_BOOKINGS: d.bookings,
+            ATTR_BOOKINGS: without_cancelled(d.bookings),
             ATTR_TOKEN_EXPIRES: d.token_expires_iso,
         }
         if d.promote_messages:

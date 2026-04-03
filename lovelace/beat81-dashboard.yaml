@@ -1,5 +1,5 @@
 # Add as a new Lovelace dashboard (Raw configuration editor) or merge into an existing view.
-# Entity IDs include your account id, e.g. calendar.beat81_<id>_classes and calendar.beat81_<id>_next_bookings.
+# Entity IDs include your account id, e.g. calendar.beat81_<id>_all_workouts.
 
 title: Beat81
 views:
@@ -22,6 +22,12 @@ views:
         entities:
           - calendar.beat81_next_bookings
         initial_view: listWeek
+
+      - type: calendar
+        title: All workouts (every status + recent past)
+        entities:
+          - calendar.beat81_all_workouts
+        initial_view: dayGridMonth
 
       - type: horizontal-stack
         cards:

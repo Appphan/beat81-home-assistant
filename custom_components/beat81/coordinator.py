@@ -13,6 +13,7 @@ from homeassistant.core import CALLBACK_TYPE
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .booking_filters import without_cancelled
 from .client import Beat81Client, token_exp_iso
 from .const import CONF_AUTO_PROMOTE, DOMAIN
 
@@ -137,19 +138,20 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
         except Exception as err:
             raise UpdateFailed(f"Beat81 update failed: {err}") from err
 
+        active = without_cancelled(bookings)
         booked = sum(
             1
-            for b in bookings
+            for b in active
             if b.get("current_status", {}).get("status_name") == "booked"
         )
         waitlisted = sum(
             1
-            for b in bookings
+            for b in active
             if b.get("current_status", {}).get("status_name") == "waitlisted"
         )
         data = Beat81CoordinatorData(
             bookings=bookings,
-            waitlist_rows=_build_waitlist_rows(bookings),
+            waitlist_rows=_build_waitlist_rows(active),
             booked_count=booked,
             waitlist_count=waitlisted,
             promote_messages=[],
@@ -192,19 +194,20 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             )
             return messages
 
+        active = without_cancelled(bookings)
         booked_count = sum(
             1
-            for b in bookings
+            for b in active
             if b.get("current_status", {}).get("status_name") == "booked"
         )
         waitlist_count = sum(
             1
-            for b in bookings
+            for b in active
             if b.get("current_status", {}).get("status_name") == "waitlisted"
         )
         booked_dates = {
             _parse_event_dt(b["event"]["date_begin"]).date()
-            for b in bookings
+            for b in active
             if b.get("current_status", {}).get("status_name") == "booked"
             and b.get("event", {}).get("date_begin")
         }
@@ -213,7 +216,7 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             f"Checking {len(bookings)} upcoming bookings ({booked_count} booked, {waitlist_count} waitlisted)."
         )
 
-        for booking in bookings:
+        for booking in active:
             ev = booking.get("event") or {}
             db = ev.get("date_begin")
             if not db:
@@ -255,17 +258,18 @@ class Beat81Coordinator(DataUpdateCoordinator[Beat81CoordinatorData]):
             )
 
         fresh = await self.client.async_load_bookings()
+        fresh_active = without_cancelled(fresh)
         data = Beat81CoordinatorData(
             bookings=fresh,
-            waitlist_rows=_build_waitlist_rows(fresh),
+            waitlist_rows=_build_waitlist_rows(fresh_active),
             booked_count=sum(
                 1
-                for b in fresh
+                for b in fresh_active
                 if b.get("current_status", {}).get("status_name") == "booked"
             ),
             waitlist_count=sum(
                 1
-                for b in fresh
+                for b in fresh_active
                 if b.get("current_status", {}).get("status_name") == "waitlisted"
             ),
             promote_messages=messages,

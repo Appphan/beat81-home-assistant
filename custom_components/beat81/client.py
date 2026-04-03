@@ -6,13 +6,13 @@ import base64
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
 import aiohttp
 
-from .const import BOOKING_URL
+from .const import BOOKING_URL, BOOKINGS_API_LIMIT, BOOKINGS_API_PAST_DAYS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,12 +120,12 @@ class Beat81Client:
             )
 
         now = datetime.now(timezone.utc)
+        start = now - timedelta(days=BOOKINGS_API_PAST_DAYS)
         params = {
             "user_id": self.user_id,
             "$sort[event_date_begin]": 1,
-            "event_date_begin_gte": now.astimezone().isoformat(timespec="milliseconds"),
-            "status_ne": "cancelled",
-            "$limit": 100,
+            "event_date_begin_gte": start.astimezone().isoformat(timespec="milliseconds"),
+            "$limit": BOOKINGS_API_LIMIT,
             "$skip": 0,
         }
         url = f"{BOOKING_URL}?{urlencode(params)}"

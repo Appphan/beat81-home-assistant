@@ -103,6 +103,10 @@ def dual_poll_intervals(options: Mapping[str, Any]) -> tuple[timedelta, timedelt
 
 BOOKING_URL = "https://api.production.b81.io/api/tickets"
 
+# Wider window + limit so calendars can show recent past and cancelled sessions.
+BOOKINGS_API_PAST_DAYS = 14
+BOOKINGS_API_LIMIT = 500
+
 ATTR_BOOKINGS = "bookings"
 ATTR_WAITLIST = "waitlist"
 ATTR_BOOKED_COUNT = "booked_count"

@@ -9,7 +9,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 | Path | Purpose |
 |------|---------|
 | `hacs.json` | HACS metadata (only for GitHub / HACS; not copied into `/config`) |
-| `custom_components/beat81/` | Custom integration (copy into HA `/config/custom_components/`) |
+| `custom_components/beat81/` | Custom integration (copy into HA `/config/custom_components/`, includes `booking_filters.py`) |
 | `configuration.example.yaml` | Optional legacy YAML import (prefer UI setup) |
 | `lovelace/beat81-dashboard.yaml` | Lovelace layout: calendar, waitlist, one-tap promote |
 | `automations.example.yaml` | Example YAML for forced refresh + auto-promote |
@@ -17,7 +17,7 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 ## Features
 
 - **UI setup** with a guided description for obtaining the JWT, optional user-id override, and poll interval.
-- **Calendars:** **Classes** (booked + waitlist) and **Next bookings** (confirmed classes only).
+- **Calendars:** **Classes** (active booked + waitlist), **Next bookings** (confirmed only), **All workouts** (every ticket status including cancelled, plus ~14 days of past sessions — still **your** tickets only, not the full public schedule).
 - **Status sensor** with counts and structured waitlist rows (spots open, same-day block, can promote).
 - **Button** “Promote waitlist” plus service **`beat81.promote_waitlist`**.
 - **Options**: change API poll interval without re-entering the token; optional **auto-promote** after each poll when a waitlisted class becomes bookable.
@@ -37,12 +37,12 @@ Unofficial Home Assistant custom integration for Beat81 class bookings. This int
 
 3. Go to **Settings → Devices & services → Add integration** and search for **Beat81**. Follow the form; the description explains how to obtain the JWT.
 
-4. Optional: add the dashboard from `lovelace/beat81-dashboard.yaml`. Entity IDs look like `sensor.beat81_<your_user_id>_status` and `calendar.beat81_<id>_next_bookings` — pick the real entities from **Developer tools → States** or the device page.
+4. Optional: add the dashboard from `lovelace/beat81-dashboard.yaml`. Entity IDs look like `sensor.beat81_<your_user_id>_status` and `calendar.beat81_<id>_all_workouts` — pick the real entities from **Developer tools → States** or the device page.
 
 ### HACS
 
 1. **HACS** → **Integrations** → **⋮** → **Custom repositories** → add `https://github.com/Appphan/beat81-home-assistant` as category **Integration**.
-2. **Download** a **release** (e.g. **v1.5.0** or newer) when offered.
+2. **Download** a **release** (e.g. **v1.6.0** or newer) when offered.
 3. **Restart Home Assistant**, then add **Beat81** from the UI as above.
 
 The repo root includes **`hacs.json`** so the default branch works with HACS; tagged **releases** are still recommended.
